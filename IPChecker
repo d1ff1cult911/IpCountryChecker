@@ -1,0 +1,75 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
+using System.Linq;
+using System.Threading.Tasks.Dataflow;
+
+class IpData
+{
+    public string ip { get; set; }
+    public string city { get; set; }
+    public string country { get; set; }
+}
+
+class Program
+{
+    static async Task Main()
+    {
+        string[] lines = File.ReadAllLines("IPs.txt");
+        List<string> ips = new List<string>();
+        foreach (var line in lines)
+        {
+            string clean = line.Trim();
+
+            if (!string.IsNullOrEmpty(clean))
+            {
+                ips.Add(clean);
+            }
+        }
+        Console.WriteLine($"Всего IP: {ips.Count}");
+        HttpClient client = new HttpClient();
+        List<IpData> results = new List<IpData>();
+        foreach (var ip in ips)
+        {
+            try
+            {
+                string url = $"https://ipinfo.io/{ip}/json";
+                var response = await client.GetAsync(url);
+                string json = await response.Content.ReadAsStringAsync();
+                IpData data = JsonConvert.DeserializeObject<IpData>(json);
+                if (data != null)
+                {
+                    results.Add(data);
+                }
+                await Task.Delay(200);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка для {ip}: {ex.Message}");
+            }
+        }
+        Console.WriteLine($"Получено данных: {results.Count}");
+        foreach (var r in results)
+        {
+            Console.WriteLine($"{r.ip} {r.country} {r.city}");
+        }
+        var grouped = results.GroupBy(x => x.country).OrderByDescending(g => g.Count()).ToList();
+        Console.WriteLine("\nIP по странам:");
+
+        foreach (var g in grouped)
+        {
+            Console.WriteLine($"{g.Key} - {g.Count()}");
+        }
+        var top = grouped.First();
+        Console.WriteLine($"\nМаксимум IP в стране: {top.Key}");
+        var cities = top.GroupBy(x => x.city).OrderByDescending(g => g.Count()).ToList();
+        Console.WriteLine($"\nГорода в стране {top.Key}:");
+        foreach (var c in cities)
+        {
+            Console.WriteLine($"{c.Key}");
+        }
+    }
+}
